@@ -20,13 +20,11 @@ from update_prices import update_all_stations
 
 logging.basicConfig(level=logging.INFO)
 
-
 # ===== ФУНКЦИИ РАБОТЫ С БД =====
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    # Создаём таблицу users, если её нет
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             telegram_id INTEGER PRIMARY KEY,
@@ -36,7 +34,6 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    # Проверяем, есть ли колонка vip_until
     cursor.execute("PRAGMA table_info(users)")
     columns = [col[1] for col in cursor.fetchall()]
     if 'vip_until' not in columns:
@@ -44,7 +41,6 @@ def init_db():
         conn.commit()
         logging.info("✅ Добавлена колонка vip_until в таблицу users")
     conn.close()
-
 
 def add_user(telegram_id: int, username: str = None, first_name: str = None, last_name: str = None):
     conn = sqlite3.connect(DB_PATH)
@@ -56,7 +52,6 @@ def add_user(telegram_id: int, username: str = None, first_name: str = None, las
     conn.commit()
     conn.close()
 
-
 def get_all_users():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -64,7 +59,6 @@ def get_all_users():
     rows = cursor.fetchall()
     conn.close()
     return [row[0] for row in rows]
-
 
 def is_vip(user_id: int) -> bool:
     conn = sqlite3.connect(DB_PATH)
@@ -80,7 +74,6 @@ def is_vip(user_id: int) -> bool:
             return False
     return False
 
-
 def get_vip_until(user_id: int):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -91,27 +84,12 @@ def get_vip_until(user_id: int):
         return row[0]
     return None
 
-
-def set_vip(user_id: int, days: int):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    vip_until = (datetime.now() + timedelta(days=days)).isoformat()
-    cursor.execute('''
-        UPDATE users SET vip_until = ? WHERE telegram_id = ?
-    ''', (vip_until, user_id))
-    conn.commit()
-    conn.close()
-
-
 def remove_vip(user_id: int):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute('''
-        UPDATE users SET vip_until = NULL WHERE telegram_id = ?
-    ''', (user_id,))
+    cursor.execute('UPDATE users SET vip_until = NULL WHERE telegram_id = ?', (user_id,))
     conn.commit()
     conn.close()
-
 
 # ===== ФУНКЦИИ РАБОТЫ С БД (топливо) =====
 
@@ -140,7 +118,6 @@ def get_stations_by_fuel(fuel_type: str):
     rows = cursor.fetchall()
     conn.close()
     return rows
-
 
 def get_all_stations_with_fuel():
     conn = sqlite3.connect(DB_PATH)
@@ -190,10 +167,8 @@ def get_all_stations_with_fuel():
             result.append((name, address, lat, lon, available, soon, in_transit))
     return result
 
-
 def is_valid_url(text: str) -> bool:
     return text.startswith(('http://', 'https://'))
-
 
 def format_stations_list(fuel_type: str, stations):
     if not stations:
@@ -231,7 +206,6 @@ def format_stations_list(fuel_type: str, stations):
             break
     return "\n".join(parts)
 
-
 def format_all_stations(stations, show_statuses: bool = True):
     if not stations:
         return "😕 Нет станций с топливом в наличии."
@@ -264,7 +238,6 @@ def format_all_stations(stations, show_statuses: bool = True):
 
     return "\n".join(parts)
 
-
 # ===== КЛАВИАТУРЫ =====
 
 def get_fuel_choice_keyboard():
@@ -277,16 +250,13 @@ def get_fuel_choice_keyboard():
     builder.adjust(3, 2, 1)
     return builder.as_markup()
 
-
 def get_back_keyboard():
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_fuel"))
     return builder.as_markup()
 
-
 # ===== ДИСПЕТЧЕР =====
 dp = Dispatcher()
-
 
 # ===== ОБРАБОТЧИКИ =====
 
@@ -303,7 +273,6 @@ async def cmd_start(message: types.Message):
         "Используй команду /fuel, чтобы выбрать тип топлива или посмотреть все заправки."
     )
 
-
 @dp.message(Command("fuel"))
 async def cmd_fuel(message: types.Message):
     add_user(
@@ -316,7 +285,6 @@ async def cmd_fuel(message: types.Message):
         "Выберите тип топлива или посмотрите все заправки:",
         reply_markup=get_fuel_choice_keyboard()
     )
-
 
 @dp.message(Command("all"))
 async def cmd_all(message: types.Message):
@@ -335,7 +303,6 @@ async def cmd_all(message: types.Message):
         reply_markup=get_back_keyboard(),
         link_preview_options=LinkPreviewOptions(is_disabled=True)
     )
-
 
 @dp.message(Command("broadcast"))
 async def cmd_broadcast(message: types.Message):
@@ -370,7 +337,6 @@ async def cmd_broadcast(message: types.Message):
         f"❌ Ошибок: {failed}"
     )
 
-
 @dp.message(Command("addvip"))
 async def cmd_addvip(message: types.Message):
     if message.from_user.id != OWNER_ID:
@@ -379,27 +345,21 @@ async def cmd_addvip(message: types.Message):
 
     args = message.text.split(maxsplit=2)
     if len(args) < 3:
-        await message.answer(
-            "❌ Формат: /addvip <id или @username> <время>\nПример: /addvip 123456789 30d\nПример: /addvip @john 2h\nПример: /addvip 123456789 15m")
+        await message.answer("❌ Формат: /addvip <id или @username> <время>\nПример: /addvip 123456789 30d\nПример: /addvip @john 2h\nПример: /addvip 123456789 15m")
         return
 
     identifier = args[1].strip()
     time_str = args[2].strip()
 
-    # Парсим время
     try:
         if time_str.endswith('d'):
-            days = int(time_str[:-1])
-            seconds = days * 86400
+            seconds = int(time_str[:-1]) * 86400
         elif time_str.endswith('h'):
-            hours = int(time_str[:-1])
-            seconds = hours * 3600
+            seconds = int(time_str[:-1]) * 3600
         elif time_str.endswith('m'):
-            minutes = int(time_str[:-1])
-            seconds = minutes * 60
+            seconds = int(time_str[:-1]) * 60
         else:
-            days = int(time_str)
-            seconds = days * 86400
+            seconds = int(time_str) * 86400
     except:
         await message.answer("❌ Ошибка в формате времени. Примеры: 30d, 2h, 15m")
         return
@@ -408,7 +368,6 @@ async def cmd_addvip(message: types.Message):
         await message.answer("❌ Время должно быть положительным.")
         return
 
-    # Находим пользователя
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     user_id = None
@@ -429,7 +388,6 @@ async def cmd_addvip(message: types.Message):
         await message.answer(f"❌ Пользователь с идентификатором '{identifier}' не найден.")
         return
 
-    # Устанавливаем VIP
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT vip_until FROM users WHERE telegram_id = ?", (user_id,))
@@ -438,22 +396,16 @@ async def cmd_addvip(message: types.Message):
     if row and row[0]:
         try:
             current_vip_until = datetime.fromisoformat(row[0])
-            if current_vip_until > now:
-                new_vip_until = current_vip_until + timedelta(seconds=seconds)
-            else:
-                new_vip_until = now + timedelta(seconds=seconds)
+            new_vip_until = (current_vip_until if current_vip_until > now else now) + timedelta(seconds=seconds)
         except:
             new_vip_until = now + timedelta(seconds=seconds)
     else:
         new_vip_until = now + timedelta(seconds=seconds)
 
-    cursor.execute('''
-        UPDATE users SET vip_until = ? WHERE telegram_id = ?
-    ''', (new_vip_until.isoformat(), user_id))
+    cursor.execute('UPDATE users SET vip_until = ? WHERE telegram_id = ?', (new_vip_until.isoformat(), user_id))
     conn.commit()
     conn.close()
 
-    # Уведомляем пользователя
     try:
         await message.bot.send_message(
             user_id,
@@ -463,9 +415,7 @@ async def cmd_addvip(message: types.Message):
     except:
         pass
 
-    await message.answer(
-        f"✅ Пользователю {identifier} выдана VIP-подписка до {new_vip_until.strftime('%d.%m.%Y %H:%M')}.")
-
+    await message.answer(f"✅ Пользователю {identifier} выдана VIP-подписка до {new_vip_until.strftime('%d.%m.%Y %H:%M')}.")
 
 @dp.message(Command("removevip"))
 async def cmd_removevip(message: types.Message):
@@ -475,13 +425,11 @@ async def cmd_removevip(message: types.Message):
 
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        await message.answer(
-            "❌ Формат: /removevip <id или @username>\nПример: /removevip 123456789\nПример: /removevip @john")
+        await message.answer("❌ Формат: /removevip <id или @username>")
         return
 
     identifier = args[1].strip()
 
-    # Находим пользователя
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     user_id = None
@@ -504,17 +452,12 @@ async def cmd_removevip(message: types.Message):
 
     remove_vip(user_id)
 
-    # Уведомляем пользователя
     try:
-        await message.bot.send_message(
-            user_id,
-            f"❌ Ваша VIP-подписка была отключена администратором."
-        )
+        await message.bot.send_message(user_id, "❌ Ваша VIP-подписка была отключена администратором.")
     except:
         pass
 
     await message.answer(f"✅ VIP-подписка у пользователя {identifier} удалена.")
-
 
 @dp.callback_query(F.data.startswith("fuel_"))
 async def callback_fuel(callback: types.CallbackQuery):
@@ -535,7 +478,6 @@ async def callback_fuel(callback: types.CallbackQuery):
         link_preview_options=LinkPreviewOptions(is_disabled=True)
     )
 
-
 @dp.callback_query(F.data == "all_stations")
 async def callback_all_stations(callback: types.CallbackQuery):
     add_user(
@@ -555,7 +497,6 @@ async def callback_all_stations(callback: types.CallbackQuery):
         link_preview_options=LinkPreviewOptions(is_disabled=True)
     )
 
-
 @dp.callback_query(F.data == "subscription_info")
 async def callback_subscription_info(callback: types.CallbackQuery):
     await callback.answer()
@@ -574,7 +515,6 @@ async def callback_subscription_info(callback: types.CallbackQuery):
     else:
         status_text = "❌ Неактивна"
 
-    # Используем CONTACT_INFO как готовый текст
     text = CONTACT_INFO
     text += f"\n\n<b>Ваш статус:</b> {status_text}"
 
@@ -584,7 +524,6 @@ async def callback_subscription_info(callback: types.CallbackQuery):
         reply_markup=get_back_keyboard(),
         link_preview_options=LinkPreviewOptions(is_disabled=True)
     )
-
 
 @dp.callback_query(F.data == "back_to_fuel")
 async def callback_back_to_fuel(callback: types.CallbackQuery):
@@ -600,37 +539,17 @@ async def callback_back_to_fuel(callback: types.CallbackQuery):
         reply_markup=get_fuel_choice_keyboard()
     )
 
+# ===== ФОНОВОЕ ОБНОВЛЕНИЕ ЦЕН (КАЖДЫЕ 5 МИНУТ) =====
 
-# ===== ФУНКЦИЯ ОТПРАВКИ В ГРУППУ =====
-
-async def send_group_update(bot: Bot):
-    try:
-        stations = get_all_stations_with_fuel()
-        text = format_all_stations(stations, show_statuses=GROUP_SHOW_STATUSES)
-        await bot.send_message(
-            chat_id=GROUP_CHAT_ID,
-            text=text,
-            parse_mode="HTML",
-            link_preview_options=LinkPreviewOptions(is_disabled=True)
-        )
-        logging.info("✅ Отправлено новое сообщение в группу")
-    except Exception as e:
-        logging.error(f"❌ Ошибка при отправке сообщения в группу: {e}")
-
-
-# ===== ФОНОВАЯ ЗАДАЧА =====
-
-async def combined_group_updater(bot: Bot):
+async def background_update():
+    """Обновляет цены каждые 5 минут. Никаких сообщений в группу."""
     while True:
         try:
             await asyncio.to_thread(update_all_stations)
             logging.info("✅ Фоновое обновление цен выполнено")
-            await send_group_update(bot)
-            logging.info("✅ Новое сообщение отправлено в группу")
         except Exception as e:
-            logging.error(f"❌ Критическая ошибка в цикле обновления: {e}")
-        await asyncio.sleep(3600)  # 1 час
-
+            logging.error(f"❌ Ошибка при обновлении цен: {e}")
+        await asyncio.sleep(300)  # 5 минут
 
 # ===== ЗАПУСК =====
 
@@ -638,12 +557,14 @@ async def main():
     init_db()
     bot = Bot(token=BOT_TOKEN)
     logging.info("Бот запускается без прокси (прямое подключение)")
-    asyncio.create_task(combined_group_updater(bot))
+
+    # Запускаем фоновое обновление цен
+    asyncio.create_task(background_update())
+
     try:
         await dp.start_polling(bot)
     except Exception as e:
         logging.error(f"Ошибка при запуске: {e}")
-
 
 if __name__ == "__main__":
     asyncio.run(main())
