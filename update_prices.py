@@ -1,9 +1,10 @@
 import sqlite3
 import requests
+import urllib3
 from datetime import datetime, timedelta
 from config import DB_PATH
-import urllib3
 
+# Отключаем предупреждения об SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HEADERS = {
@@ -18,7 +19,18 @@ HEADERS = {
     'Sec-Fetch-Site': 'same-origin',
 }
 
-# Попытка импорта зонных модулей
+# ===== ПОДКЛЮЧЕНИЕ К БД С ЗАЩИТОЙ ОТ БЛОКИРОВОК =====
+
+def get_db():
+    """Возвращает соединение с БД с настройками для параллельной работы."""
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    return conn
+
+# ===== ВРЕМЯ =====
+
 try:
     from zoneinfo import ZoneInfo
     HAS_ZONEINFO = True
@@ -30,6 +42,7 @@ try:
     HAS_PYTZ = True
 except ImportError:
     HAS_PYTZ = False
+
 
 def get_now_msk():
     if HAS_ZONEINFO:
@@ -45,12 +58,14 @@ def get_now_msk():
         now_msk = now_utc + timedelta(hours=3)
         return now_msk.isoformat(timespec='microseconds')
 
+
+# ===== ПАРСИНГ =====
+
 def fetch_prices(station_id):
     url = f"https://gpnbonus.ru/api/stations/{station_id}"
     session = requests.Session()
     session.headers.update(HEADERS)
     try:
-        # 👇 добавляем verify=False
         resp = session.get(url, timeout=10, verify=False)
         if resp.status_code == 200:
             return resp.json()
@@ -61,9 +76,10 @@ def fetch_prices(station_id):
         print(f"Ошибка запроса для {station_id}: {e}")
         return None
 
+
 def parse_prices(raw_data):
-    """Извлекает цены, наличие и статус доставки из ответа API."""
     if not isinstance(raw_data, dict):
+        print(f"Ошибка: ожидался словарь, получен {type(raw_data)}. Пропускаем.")
         return {
             'price_100': None, 'available_100': None, 'delivery_100': None,
             'price_95plus': None, 'available_95plus': None, 'delivery_95plus': None,
@@ -93,10 +109,7 @@ def parse_prices(raw_data):
         title = product.get('title')
 
         price_info = item.get('price')
-        if isinstance(price_info, dict):
-            price = price_info.get('price')
-        else:
-            price = None
+        price = price_info.get('price') if isinstance(price_info, dict) else None
 
         rest = item.get('rest')
         if isinstance(rest, dict):
@@ -106,7 +119,6 @@ def parse_prices(raw_data):
             avail = False
             delivery = None
 
-        # Маппинг title -> ключи результата
         if title == 'Бензин АИ-100 брендированный':
             result['price_100'] = price
             result['available_100'] = avail
@@ -130,8 +142,11 @@ def parse_prices(raw_data):
 
     return result
 
+
+# ===== ОБНОВЛЕНИЕ ВСЕХ СТАНЦИЙ =====
+
 def update_all_stations():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT id, external_id FROM stations WHERE source = 'gpn'")
     stations = cursor.fetchall()
@@ -192,6 +207,7 @@ def update_all_stations():
     conn.commit()
     conn.close()
     print("Все цены обновлены!")
+
 
 if __name__ == "__main__":
     update_all_stations()
