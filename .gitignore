@@ -33,3 +33,6 @@ build/uelot/PYZ-00.toc
 build/uelot/uelot.pkg
 build/uelot/warn-uelot.txt
 build/uelot/xref-uelot.html
+config.py
+fuel.db
+fuel.db
