@@ -179,7 +179,7 @@ def format_stations_list(fuel_type: str, stations):
         if updated:
             try:
                 dt = datetime.fromisoformat(updated)
-                formatted_time = dt.strftime("%y.%m.%d %H:%M")
+                formatted_time = dt.strftime("%d.%m.%y %H:%M")
             except:
                 formatted_time = updated
         else:
